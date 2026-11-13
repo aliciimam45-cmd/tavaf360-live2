@@ -32,7 +32,6 @@ wss.on("connection", (ws) => {
 
 function broadcast(data) {
   const message = JSON.stringify(data);
-
   for (const client of clients) {
     if (client.readyState === 1) {
       client.send(message);
@@ -57,11 +56,7 @@ connection.on(WebcastEvent.CHAT, (data) => {
   if (joinedUsers.has(username)) return;
 
   joinedUsers.add(username);
-
-  broadcast({
-    type: "JOIN",
-    username
-  });
+  broadcast({ type: "JOIN", username });
 
   console.log("Participant joined:", username);
 });
