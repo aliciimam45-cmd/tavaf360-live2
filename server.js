@@ -18,7 +18,7 @@ const clients = new Set();
 const joinedUsers = new Set();
 
 app.get("/", (req, res) => {
-  res.send("Tavaf360 LIVE is running!");
+  res.send("Tavaf360 LIVE server is running!");
 });
 
 app.get("/health", (req, res) => {
@@ -27,7 +27,11 @@ app.get("/health", (req, res) => {
 
 wss.on("connection", (ws) => {
   clients.add(ws);
-  ws.on("close", () => clients.delete(ws));
+  console.log("Simulation connected");
+
+  ws.on("close", () => {
+    clients.delete(ws);
+  });
 });
 
 function broadcast(data) {
@@ -47,29 +51,34 @@ server.listen(PORT, "0.0.0.0", () => {
 const connection = new TikTokLiveConnection(USERNAME);
 
 connection.on(WebcastEvent.CHAT, (data) => {
-  const comment = (data.comment || "")
+  const comment = (data.content || "")
     .trim()
     .toLocaleUpperCase("tr-TR");
 
-  const username = data.user?.uniqueId;
+  const username = data.user?.displayId;
 
   if (comment !== "KATIL" || !username) return;
+
   if (joinedUsers.has(username)) return;
 
   joinedUsers.add(username);
 
   broadcast({
     type: "JOIN",
-    username
+    username: username
   });
 
   console.log("Participant joined:", username);
 });
 
 connection.on("error", (error) => {
-  console.error("TikTok error:", error);
+  console.error("TikTok connection error:", error);
 });
 
 connection.connect()
-  .then(() => console.log("TikTok LIVE connected"))
-  .catch((error) => console.error("TikTok connection failed:", error));
+  .then(() => {
+    console.log("TikTok LIVE connected!");
+  })
+  .catch((error) => {
+    console.error("TikTok connection failed:", error);
+  });
