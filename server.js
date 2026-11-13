@@ -1,24 +1,23 @@
 
 import express from "express";
-import { createServer } from "http";
-import { WebSocketServer } from "ws";
-import {
-  TikTokLiveConnection,
-  WebcastEvent
-} from "tiktok-live-connector";
+import { createServer } from "node:http";
+import { WebSocketServer, WebSocket } from "ws";
+import { WebcastPushConnection } from "tiktok-live-connector/legacy";
 
 const app = express();
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
 const PORT = process.env.PORT || 3000;
-const USERNAME = process.env.TIKTOK_USERNAME || "sadakartt.com";
+const tiktokUsername = (
+  process.env.TIKTOK_USERNAME || "sadakartt.com"
+).replace(/^@/, "");
 
 const clients = new Set();
 const joinedUsers = new Set();
 
 app.get("/", (req, res) => {
-  res.send("Tavaf360 LIVE server is running!");
+  res.send("Tavaf360 LIVE is running!");
 });
 
 app.get("/health", (req, res) => {
@@ -34,12 +33,10 @@ wss.on("connection", (ws) => {
   });
 });
 
-function broadcast(data) {
-  const message = JSON.stringify(data);
-
+function sendToSimulation(payload) {
   for (const client of clients) {
-    if (client.readyState === 1) {
-      client.send(message);
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(payload));
     }
   }
 }
@@ -48,36 +45,42 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log("Tavaf360 server running on port " + PORT);
 });
 
-const connection = new TikTokLiveConnection(USERNAME);
+const tiktokLiveConnection = new WebcastPushConnection(
+  tiktokUsername
+);
 
-connection.on(WebcastEvent.CHAT, (data) => {
-  const comment = (data.content || "")
+tiktokLiveConnection.on("chat", (data) => {
+  const message = (data.comment || "")
     .trim()
-    .toLocaleUpperCase("tr-TR");
+    .toLocaleLowerCase("tr-TR");
 
-  const username = data.user?.displayId;
+  if (message !== "katıl" && message !== "katil") {
+    return;
+  }
 
-  if (comment !== "KATIL" || !username) return;
-
-  if (joinedUsers.has(username)) return;
+  const username = data.uniqueId;
+  if (!username || joinedUsers.has(username)) return;
 
   joinedUsers.add(username);
 
-  broadcast({
-    type: "JOIN",
-    username: username
-  });
+  console.log("New participant:", username);
 
-  console.log("Participant joined:", username);
+  sendToSimulation({
+    action: "JOIN_TAWAF",
+    userId: data.userId,
+    username: username,
+    nickname: data.nickname || username,
+    avatar: data.profilePictureUrl || ""
+  });
 });
 
-connection.on("error", (error) => {
+tiktokLiveConnection.on("error", (error) => {
   console.error("TikTok connection error:", error);
 });
 
-connection.connect()
-  .then(() => {
-    console.log("TikTok LIVE connected!");
+tiktokLiveConnection.connect()
+  .then((state) => {
+    console.log("TikTok connected! Room ID:", state.roomId);
   })
   .catch((error) => {
     console.error("TikTok connection failed:", error);
